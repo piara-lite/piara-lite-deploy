@@ -1,0 +1,332 @@
+version: '3.4'
+
+secrets:
+  certbundle-pem:
+    file: secrets/certbundle.pem
+  certkey-pem:
+    file: secrets/certkey.pem
+
+networks:
+  ${PIARA_COMMON_NETWORK_NAME}:
+    external: true
+    driver: overlay
+  prometheus-grafana-net:
+    external: true
+    driver: overlay
+
+configs:
+  build-json:
+    file: build.json
+  traefik-config:
+    file: ./traefik/traefik.yml
+  es:
+    file: ./es/configs/elasticsearch.yml
+  es-logs:
+    file: ./es/configs/log4j2.properties
+  server-es-policy:
+    file: ./server/essettings/index_lifecycle_policy.json
+  server-es-template:
+    file: ./server/essettings/index_lifecycle_template.json
+  server-nlog-config:
+    file: ./server/configs/NLog.config
+  prometheus-config:
+    file: ./prometheus/prometheus.yml
+
+volumes:
+    prometheus: {}
+
+services:
+  back-build-json-nginx:
+    image: nginx:1.22.1-alpine
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.back-build-json-nginx.rule=Host(`${PIARA_COMMON_DOMAIN_NAME_SERVER}`) && Path(`${PIARA_COMMON_CONTEXT_SERVER}/build.json`, `/build.json`)
+        - traefik.http.routers.back-build-json-nginx.entrypoints=websecure
+        - traefik.http.routers.back-build-json-nginx.tls=true
+        #- traefik.http.routers.back-build-json-nginx.tls.certresolver=myresolver
+        - traefik.http.routers.back-build-json-nginx.priority=1000
+        - traefik.http.routers.back-build-json-nginx.middlewares=back-build-json-nginx-replacepathregex@docker
+        - traefik.http.services.back-build-json-nginx.loadbalancer.server.port=80
+        - traefik.http.middlewares.back-build-json-nginx-replacepathregex.replacepathregex.regex=^${PIARA_COMMON_CONTEXT_SERVER}/(.*)
+        - traefik.http.middlewares.back-build-json-nginx-replacepathregex.replacepathregex.replacement=/$$1
+    configs:
+      - source: build-json
+        target: /usr/share/nginx/html/build.json
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-redis:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.redis
+        constraints:
+          - "node.role==manager"
+    image: bitnami/redis:7.0
+    volumes:
+      - ../data/back/redis/data:/bitnami/redis/data
+    env_file:
+      - .redis.env
+    healthcheck:
+      test: redis-cli ping || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2s
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "redis"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-db:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.db
+        constraints:
+          - "node.role==manager"
+    image: postgres:17.3
+    command: postgres -c max_connections=300
+    volumes:
+      - ../data/back/db/data:/var/lib/postgresql/data
+    env_file:
+      - .db.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "db"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-es:
+    deploy:
+      resources:
+        limits:
+          memory: 8GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.es
+        constraints:
+          - "node.role==manager"
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.2
+    volumes:
+      - ../data/back/es/data:/usr/share/elasticsearch/data
+      - ../data/back/es/logs:/usr/share/elasticsearch/logs
+    configs:
+      - source: es
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+      - source: es-logs
+        target: /usr/share/elasticsearch/config/log4j2.properties
+    env_file:
+      - .es.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "es"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-zoo:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.zoo
+        constraints:
+          - "node.role==manager"
+    image: bitnami/zookeeper:3.8.0
+    volumes:
+      - ../data/back/zoo/data:/bitnami/zookeeper
+    env_file:
+      - .zoo.env
+    healthcheck:
+      test: nc -z localhost 2181 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "zoo"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-kafka:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.kafka
+        constraints:
+          - "node.role==manager"
+    image: bitnami/kafka:3.3.1
+    volumes:
+      - ../data/back/kafka/data:/bitnami/kafka
+    depends_on:
+      - zoo
+    env_file:
+      - .kafka.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "kafka"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-server-maintenance:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.server-maintenance
+    image: ${PIARA_COMMON_IMAGES_SERVER_NAME}:${PIARA_COMMON_IMAGES_SERVER_TAG}
+    volumes:
+      - ../data/back/server-maintenance/logs:/usr/local/piara-server/logs
+      - ../data/back/server/reports:/usr/local/reports
+      - ../data/back/server/files:/usr/local/files
+    depends_on:
+      - db
+      - kafka
+      - es
+      - redis
+    configs:
+      - source: server-es-policy
+        target: /usr/local/essettings/index_lifecycle_policy.json
+      - source: server-es-template
+        target: /usr/local/essettings/index_lifecycle_template.json
+      - source: server-nlog-config
+        target: /usr/local/piara-server/config/NLog.config
+    env_file:
+      - .server-maintenance.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "server-maintenance"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-server-core:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.back-server-core
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.back-server-core.rule=(Host(`${PIARA_COMMON_DOMAIN_NAME_SERVER}`) && PathPrefix(`${PIARA_COMMON_CONTEXT_SERVER}{regex:$$|/.*}`)) || Host(`${PIARA_COMMON_DOMAIN_NAME_SERVER}`)
+        - traefik.http.routers.back-server-core.entrypoints=websecure
+        - traefik.http.routers.back-server-core.tls=true
+        #- traefik.http.routers.back-server-core.tls.certresolver=myresolver
+        - traefik.http.services.back-server-core.loadbalancer.server.port=5555
+    image: ${PIARA_COMMON_IMAGES_SERVER_NAME}:${PIARA_COMMON_IMAGES_SERVER_TAG}
+    volumes:
+      - ../data/back/server-core/logs:/usr/local/piara-server/logs
+      - ../data/back/server/reports:/usr/local/reports
+      - ../data/back/server/files:/usr/local/files
+    depends_on:
+      - db
+      - kafka
+      - es
+      - redis
+    configs:
+      - source: server-es-policy
+        target: /usr/local/essettings/index_lifecycle_policy.json
+      - source: server-es-template
+        target: /usr/local/essettings/index_lifecycle_template.json
+      - source: server-nlog-config
+        target: /usr/local/piara-server/config/NLog.config
+    env_file:
+      - .server-core.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "server-core"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-arangodb:
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.arangodb
+        constraints:
+          - "node.role==manager"
+    image: arangodb/arangodb:3.11.5
+    volumes:
+      - ../data/back/arangodb/data:/var/lib/arangodb3
+    env_file:
+      - .arangodb.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "arangodb"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  back-prometheus:
+    image: prom/prometheus:v2.37.4
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}    
+      - prometheus-grafana-net
+    #ports:
+    #  - 9090:9090
+    command:
+      - '--config.file=/etc/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - prometheus:/prometheus
+    configs:
+      - source: prometheus-config
+        target: /etc/prometheus.yml
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        constraints:
+          - node.role == manager

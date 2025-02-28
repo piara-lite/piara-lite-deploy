@@ -1,0 +1,136 @@
+version: '3.4'
+
+secrets:
+  certbundle-pem:
+    file: secrets/certbundle.pem
+  certkey-pem:
+    file: secrets/certkey.pem
+
+configs:
+  build-json:
+    file: build.json
+  traefik-config:
+    file: ./traefik/traefik.yml
+
+networks:
+  ${PIARA_COMMON_NETWORK_NAME}:
+    external: true
+    driver: overlay
+
+services:
+  front-traefik:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        constraints:
+          - "node.role==manager"
+    image: traefik:v2.10
+    ports:
+      - ${PIARA_COMMON_NETWORK_TRAEFIK_EXPOSE_PORT_SSL}:443
+      - ${PIARA_COMMON_NETWORK_TRAEFIK_EXPOSE_PORT_HTTP}:80
+      - ${PIARA_COMMON_NETWORK_TRAEFIK_EXPOSE_PORT_DASHBOARD}:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../data/front/traefik/acme:/etc/traefik/acme
+    configs:
+      - source: traefik-config
+        target: /etc/traefik/traefik.yml
+    secrets:
+      - source: certbundle-pem
+        target: /etc/secrets/certbundle.pem
+      - source: certkey-pem
+        target: /etc/secrets/certkey.pem
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "traefik"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  front-build-json-nginx:
+    image: nginx:1.22-alpine
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        constraints:
+          - "node.role==manager"
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.front-build-json-nginx.rule=Host(`${PIARA_COMMON_DOMAIN_NAME_WEBAPP}`) && Path(`/build.json`)
+        - traefik.http.routers.front-build-json-nginx.entrypoints=websecure
+        - traefik.http.routers.front-build-json-nginx.tls=true
+        #- traefik.http.routers.front-build-json-nginx.tls.certresolver=myresolver
+        - traefik.http.services.front-build-json-nginx.loadbalancer.server.port=80
+    configs:
+      - source: build-json
+        target: /usr/share/nginx/html/build.json
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  front-webapp:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.webapp
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.front-webapp.rule=Host(`${PIARA_COMMON_DOMAIN_NAME_WEBAPP}`)
+        - traefik.http.routers.front-webapp.entrypoints=websecure
+        - traefik.http.routers.front-webapp.tls=true
+        #- traefik.http.routers.front-webapp.tls.certresolver=myresolver
+        - traefik.http.services.front-webapp.loadbalancer.server.port=80
+    image: ${PIARA_COMMON_IMAGES_WEBAPP_NAME}:${PIARA_COMMON_IMAGES_WEBAPP_TAG}
+    env_file:
+      - .webapp.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "webapp"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}
+
+  front-admin:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        preferences:
+          - spread: node.labels.admin
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.front-admin.rule=Host(`${PIARA_COMMON_DOMAIN_NAME_WEBAPP}`) && PathPrefix(`/admin`)
+        - traefik.http.routers.front-admin.entrypoints=websecure
+        - traefik.http.routers.front-admin.tls=true
+        #- traefik.http.routers.front-admin.tls.certresolver=myresolver
+        - traefik.http.routers.front-admin.middlewares=front-admin-replacepathregex@docker
+        - traefik.http.services.front-admin.loadbalancer.server.port=80
+        - traefik.http.middlewares.front-admin-replacepathregex.replacepathregex.regex=^/admin/(.*)
+        - traefik.http.middlewares.front-admin-replacepathregex.replacepathregex.replacement=/$$1
+    image: ${PIARA_COMMON_IMAGES_ADMIN_NAME}:${PIARA_COMMON_IMAGES_ADMIN_TAG}
+    env_file:
+      - .admin.env
+    logging:
+      driver: json-file
+      options:
+        labels: deafult_logger
+        tag: "admin"
+    networks:
+      - ${PIARA_COMMON_NETWORK_NAME}

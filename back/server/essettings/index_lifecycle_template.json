@@ -1,0 +1,251 @@
+{
+  "index_patterns": [
+    "stix-*"
+  ],
+
+  "template": {
+    "settings": {
+      "number_of_shards": 10,
+      "number_of_replicas": 0,
+      "index.lifecycle.name": "stix-alias-policy",
+      "index.lifecycle.rollover_alias": "stix-alias",
+      "analysis": {
+        "normalizer": {
+          "lowerasciinormalizer": {
+            "filter": [
+              "lowercase",
+              "asciifolding"
+            ],
+            "type": "custom"
+          }
+        }
+      },
+      "index" : {
+        "sort.field" : "x_npllcx_modified", 
+        "sort.order" : "desc",
+        "mapping.total_fields.limit": 3000
+      }
+    },
+
+    "mappings": {
+      "date_detection": false,
+      "dynamic_templates": [
+        {
+          "x_piarax_collections_added": {
+            "match_mapping_type": "string",
+            "match": "x_piarax_collections_added__*",
+            "mapping": {
+              "type": "date"
+            }
+          }
+        },
+        {
+          "strings": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "fields": {
+                "lowercase": {
+                  "normalizer": "lowerasciinormalizer",
+                  "ignore_above": 8190,
+                  "type": "keyword"
+                }
+              },
+              "type": "text"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "created": {
+          "type": "date"
+        },
+        "created_by_ref": {
+          "type": "text",
+          "fields": {
+            "lowercase": {
+              "type": "keyword",
+              "ignore_above": 8190,
+              "normalizer": "lowerasciinormalizer"
+            }
+          }
+        },
+        "id": {
+          "type": "text",
+          "fields": {
+            "lowercase": {
+              "type": "keyword",
+              "ignore_above": 8190,
+              "normalizer": "lowerasciinormalizer"
+            }
+          }
+        },
+        "labels": {
+          "type": "text",
+          "fields": {
+            "lowercase": {
+              "type": "keyword",
+              "ignore_above": 8190,
+              "normalizer": "lowerasciinormalizer"
+            }
+          }
+        },
+        "modified": {
+          "type": "date"
+        },
+        "object_marking_refs": {
+          "type": "text",
+          "fields": {
+            "lowercase": {
+              "type": "keyword",
+              "ignore_above": 8190,
+              "normalizer": "lowerasciinormalizer"
+            }
+          }
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "text",
+          "fields": {
+            "lowercase": {
+              "type": "keyword",
+              "ignore_above": 8190,
+              "normalizer": "lowerasciinormalizer"
+            }
+          }
+        },
+        "version": {
+          "type": "long"
+        },
+    
+        "first_seen": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "last_seen": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllcx_collections": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "x_piarax_accessible_for": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "x_piarax_accessible_via_collections_for": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+    
+        "x_npllcx_version_first": {
+          "type": "boolean"
+        },
+        "x_npllcx_version_last": {
+          "type": "boolean"
+        },
+    
+        "valid_from": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "valid_until": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "last_observed": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "first_observed": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "number_observed": {
+          "type": "long"
+        },
+    
+        "published": {
+          "type": "date"
+        },
+    
+        "x_npllc_event_date": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "due_date": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllcx_created": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "x_npllcx_modified": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "news_date": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllc_date_to": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllc_date_from": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllc_number_of_users.date": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllc_number_of_visitors.date": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "work_log.timestamp": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+        "comments.timestamp": {
+          "type": "date",
+          "ignore_malformed": true
+        },
+    
+        "x_npllc_number_of_users.num": {
+          "type": "long",
+          "ignore_malformed": true
+        },
+        "x_npllc_number_of_visitors.num": {
+          "type": "long",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}

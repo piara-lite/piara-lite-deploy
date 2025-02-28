@@ -1,0 +1,54 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://prometheus-loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: varlogs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*log
+    pipeline_stages:
+      - regex:
+          expression: "^[\\w]+\\s+[\\d]+\\s+[\\d|:]+ (?P<varlogs_host>[^\\s]+) (?P<varlogs_tag>[^:\\[]+)"
+      - labels:
+          varlogs_host:
+          varlogs_tag:
+  - job_name: dockerapi
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    pipeline_stages:
+      - static_labels:
+          job: dockerapi
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '[/]*(.*)'
+        target_label: 'dockerapi_container_name_full'
+      - source_labels: ['__meta_docker_container_id']
+        target_label: 'dockerapi_container_id'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'dockerapi_container_log_stream'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '[/]*(.*)\.[0-9a-z]*'
+        target_label: 'dockerapi_container_name'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '[/]*(.*)\.[0-9a-z]*\.[0-9a-z]*'
+        target_label: 'dockerapi_container_name'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '[/]*(.*)\.[0-9a-z]*\.[0-9a-z]*\.[0-9a-z]*'
+        target_label: 'dockerapi_container_name'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '[/]*.*\.([0-9]+)\..*'
+        target_label: 'dockerapi_container_replica'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '[/]*[^.]+\.[0-9]*\.{0,1}(.+)'
+        target_label: 'dockerapi_container_name_hash'

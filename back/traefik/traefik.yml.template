@@ -1,0 +1,43 @@
+## traefik.yml
+
+entryPoints:
+  web:
+    address: :80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: :443
+
+providers:
+  file:
+    filename: /etc/traefik/traefik.yml
+    watch: true
+  docker:
+    exposedByDefault: false
+    swarmMode: true
+
+# log:
+#   level: DEBUG
+
+# Enable access log (to standard output by default)
+# accessLog: {}
+
+# API and dashboard configuration
+api:
+  insecure: ${PIARA_TRAEFIK_API_DASHBOARD_ENABLED}
+  dashboard: ${PIARA_TRAEFIK_API_DASHBOARD_ENABLED}
+
+tls:
+  certificates:
+    - certFile: /etc/secrets/certbundle.pem
+      keyFile: /etc/secrets/certkey.pem
+      stores:
+        - default
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/secrets/certbundle.pem
+        keyFile: /etc/secrets/certkey.pem

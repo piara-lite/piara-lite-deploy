@@ -1,0 +1,148 @@
+## traefik.yml
+
+entryPoints:
+  web:
+    address: :80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: :443
+    http:
+      middlewares:
+        #- hsts@file
+        - limit@file
+
+providers:
+  file:
+    filename: /etc/traefik/traefik.yml
+    watch: true
+  docker:
+    exposedByDefault: false
+    swarmMode: true
+
+#log:
+#  level: DEBUG
+
+# Enable access log (to standard output by default)
+#accessLog: {}
+
+# API and dashboard configuration
+api:
+  insecure: ${PIARA_TRAEFIK_API_DASHBOARD_ENABLED}
+  dashboard: ${PIARA_TRAEFIK_API_DASHBOARD_ENABLED}
+
+tls:
+  certificates:
+    - certFile: /etc/secrets/certbundle.pem
+      keyFile: /etc/secrets/certkey.pem
+      stores:
+        - default
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/secrets/certbundle.pem
+        keyFile: /etc/secrets/certkey.pem
+  options:
+    default:
+      minVersion: VersionTLS12
+      maxVersion: VersionTLS13
+      cipherSuites:
+        - TLS_AES_128_GCM_SHA256
+        - TLS_AES_256_GCM_SHA384
+        - TLS_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+      curvePreferences:
+        - CurveP521
+        - CurveP384
+      sniStrict: true
+      alpnProtocols:
+        - http/1.1
+        - h2
+        - acme-tls/1
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      # Email is optional.
+      #email: mail@example.com
+      # See (also for staging limits): https://letsencrypt.org/docs/staging-environment/
+      # And for prod limints: https://letsencrypt.org/docs/rate-limits/
+      # https://letsencrypt.org/docs/duplicate-certificate-limit/
+      #caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      # See (how Renew Period	and Interval are calculated): https://doc.traefik.io/traefik/https/acme/#certificatesduration
+      # Actually, despite of Traefik documentation, Letsencrypt issues certificates only for 90 days, not more and not less.
+      # Looking in Trafik sourcecode (v2.10) it even do not send this parameter in request to Letsencrypt, because Letsencrypt does not support custom durations so far.
+      # But this parameter still influence when Traefic start trying renewal, and how often it will retry if renewal fails.
+      # So, better keep this parameter in default value 2160 hours = 90 days, then Trafik will start renewal one month before expiration and will retry every day if renewal fails.
+      # 2160 hours = 90 days
+      certificatesDuration: 2160
+      storage: /etc/traefik/acme/acme.json
+      #httpChallenge:
+      #  entryPoint: web
+      tlsChallenge: {}
+
+http:
+  routers:
+    front-proxy-pass-piara:
+      entryPoints:
+        - websecure
+      rule: Host(`${PIARA_COMMON_DOMAIN_NAME_WEBAPP}`) && PathPrefix(`${PIARA_COMMON_CONTEXT_SERVER}{regex:$$|/.*}`)
+      # middlewares:
+      #   - front-proxy-pass-piara-addprefix
+      #   - front-proxy-pass-piara-replacepathregex
+      tls: {}
+      #tls:
+      #  certResolver: myresolver
+      service: front-proxy-pass-piara
+    front-proxy-pass-crowd:
+      entryPoints:
+        - websecure
+      rule: Host(`${PIARA_COMMON_DOMAIN_NAME_WEBAPP}`) && PathPrefix(`/crowd/plugins/servlet/saml/auth{regex:$$|/.*}`)
+      middlewares:
+        - front-proxy-pass-crowd-replacepathregex
+      tls: {}
+      #tls:
+      #  certResolver: myresolver
+      service: front-proxy-pass-crowd
+  services:
+    front-proxy-pass-piara:
+      loadBalancer:
+        servers:
+          - url: ${PIARA_TRAEFIK_SERVER_PASS}
+        passHostHeader: false
+    front-proxy-pass-crowd:
+      loadBalancer:
+        servers:
+          - url: ${PIARA_TRAEFIK_SERVER_PASS}
+        passHostHeader: false
+  middlewares:
+  #   front-proxy-pass-piara-addprefix:
+  #     addPrefix:
+  #       prefix: ${PIARA_COMMON_CONTEXT_SERVER}
+  #   front-proxy-pass-piara-replacepathregex:
+  #     replacePathRegex:
+  #       regex: ^${PIARA_COMMON_CONTEXT_SERVER}/(.*)
+  #       replacement: /$1
+    front-proxy-pass-crowd-replacepathregex:
+      replacePathRegex:
+        regex: ^/crowd/plugins/servlet/saml/auth/*(.*)
+        replacement: ${PIARA_COMMON_CONTEXT_SERVER}/api/saml-authorize/$1
+    hsts:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        forceSTSHeader: true
+        sslRedirect: true
+        stsPreload: true
+        stsSeconds: 315360000
+        stsIncludeSubdomains: true
+    limit:
+      buffering:
+        maxRequestBodyBytes: 1000000000
+        maxResponseBodyBytes: 1000000000

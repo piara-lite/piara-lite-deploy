@@ -1,0 +1,27 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+  external_labels:
+    monitor: 'promswarm'
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'server-core'
+    dns_sd_configs:
+    - names:
+      - 'tasks.back-server-core'
+      type: 'A'
+      port: 5555
+    metrics_path: '/metrics'
+
+  - job_name: 'server-maintenance'
+    dns_sd_configs:
+    - names:
+      - 'tasks.back-server-maintenance'
+      type: 'A'
+      port: 5555
+    metrics_path: '/metrics'

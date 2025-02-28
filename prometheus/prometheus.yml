@@ -1,0 +1,170 @@
+version: "3.7"
+
+networks:
+  net:
+    driver: overlay
+    attachable: true
+  prometheus-grafana-net:
+    external: true
+    driver: overlay
+
+volumes:
+    prometheus: {}
+    grafana: {}
+    alertmanager: {}
+    loki-data: {}
+
+configs:
+  prometheus:
+    file: ./prometheus/prometheus.yml
+  promtail:
+    file: ./promtail/promtail-docker-config.yaml
+  loki:
+    file: ./loki/loki-local-config.yaml
+  node-exporter-entrypoint:
+    file: ./node-exporter/docker-entrypoint.sh
+
+services:
+  prometheus-loki:
+    image: grafana/loki:2.7.0
+    volumes:
+      - loki-data:/data/loki
+    configs:
+      - source: loki
+        target: /etc/loki/loki-local-config.yaml
+    command:
+      -config.file=/etc/loki/loki-local-config.yaml
+      -boltdb.shipper.compactor.ring.instance-addr=127.0.0.1
+      -distributor.ring.instance-addr=127.0.0.1
+      -frontend.instance-addr=127.0.0.1
+      -index-gateway.ring.instance-addr=127.0.0.1
+      -ingester.lifecycler.addr=127.0.0.1
+      -query-scheduler.ring.instance-addr=127.0.0.1
+      -ruler.ring.instance-addr=127.0.0.1
+    deploy:
+      mode: replicated
+      placement:
+        constraints:
+          - node.role == manager
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+    networks:
+      - net
+    ports:
+      - "3100:3100"
+
+  prometheus-promtail:
+    image: grafana/promtail:2.7.0
+    volumes:
+      - /var/log:/var/log
+      - /var/lib/docker/containers:/var/lib/docker/containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    configs:
+      - source: promtail
+        target: /etc/promtail/promtail-config.yaml
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+    networks:
+      - net
+
+  prometheus-grafana:
+    image: grafana/grafana:9.2.6
+    networks:
+      - net
+      - prometheus-grafana-net
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        constraints:
+          - node.role == manager
+
+  prometheus-node-exporter:
+    image: prom/node-exporter:v1.4.0
+    networks:
+      - net
+    environment:
+      - NODE_ID={{.Node.ID}}
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+      - /etc/hostname:/etc/nodename
+    configs:
+      - source: node-exporter-entrypoint
+        target: /etc/node-exporter/docker-entrypoint.sh
+    command:
+      - '--path.sysfs=/host/sys'
+      - '--path.procfs=/host/proc'
+      - '--collector.textfile.directory=/tmp/node-exporter/collector-textfile/'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--no-collector.ipvs'
+    entrypoint:
+       - /bin/sh
+       - /etc/node-exporter/docker-entrypoint.sh
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+
+  prometheus-cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.46.0
+    networks:
+      - net
+    command: -logtostderr -docker_only
+    volumes:
+      - /:/rootfs:ro,rslave
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+
+  prometheus-prometheus:
+    image: prom/prometheus:v2.37.4
+    networks:
+      - net
+    ports:
+      - 9090:9090
+    command:
+      - '--config.file=/etc/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - prometheus:/prometheus
+    configs:
+      - source: prometheus
+        target: /etc/prometheus.yml
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 4GB
+          cpus: '2'
+      placement:
+        constraints:
+          - node.role == manager
