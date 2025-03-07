@@ -5,6 +5,10 @@
 * Debian(amd64) latest LTS in VirtualBox (4 CPU / 8 MEM / 40 GB DISK)
   * How to create VirtualBox on your local computer see separate section in this document
   * Optionally you can deploy PIARA Lite in Cloud VM, see separate section for "Advanced deploy" in this document
+* `sudo` must be installed:
+  ```
+  apt install sudo
+  ```
 * Docker already installed, e.g. using this manual: [https://docs.docker.com/engine/install/debian/](https://docs.docker.com/engine/install/debian/)
   *   Swarm mode initialized, e.g. using this manual: [https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/](https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/)\
       For simple cases just execute the command:
@@ -22,14 +26,6 @@
 
 ### Steps <a href="#steps" id="steps"></a>
 
-1. Use the APT package management tools to update your local package index
-   ```
-   apt update
-   ```
-1. Install `sudo`
-   ```
-   apt install sudo
-   ```
 1. Install `git`
    ```
    apt install git
