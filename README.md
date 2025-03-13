@@ -2,13 +2,9 @@
 
 ### Prerequisites <a href="#prerequisites" id="prerequisites"></a>
 
-* Debian(amd64) latest LTS in VirtualBox (4 CPU / 8 MEM / 40 GB DISK)
+* Debian latest LTS in VirtualBox (4 CPU / 8 MEM / 40 GB DISK)
   * How to create VirtualBox on your local computer see separate section in this document
   * Optionally you can deploy PIARA Lite in Cloud VM, see separate section for "Advanced deploy" in this document
-* `sudo` must be installed:
-  ```
-  apt install sudo
-  ```
 * Docker already installed, e.g. using this manual: [https://docs.docker.com/engine/install/debian/](https://docs.docker.com/engine/install/debian/)
   *   Swarm mode initialized, e.g. using this manual: [https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/](https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/)\
       For simple cases just execute the command:
@@ -22,14 +18,9 @@
 
 * Both `front` and `back` stacks should run on the same machine (Docker Swarm node).
 * All commands are executed being in `piara` folder in your VM, unless otherwise stated.
-* You must be `root`
 
 ### Steps <a href="#steps" id="steps"></a>
 
-1. Install `git`
-   ```
-   apt install git
-   ```
 1. Pull depoly scripts and configs by executing command being in `/root` folder on your VM
    ```
    git clone https://github.com/piara-lite/piara-lite-deploy.git piara
