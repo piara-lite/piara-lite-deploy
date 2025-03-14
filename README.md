@@ -1,70 +1,131 @@
 # PIARA Lite Deploy 18.x
 
 ### Prerequisites <a href="#prerequisites" id="prerequisites"></a>
-
-* Debian latest LTS in VirtualBox (4 CPU / 8 MEM / 40 GB DISK)
-  * How to create VirtualBox on your local computer see separate section in this document
-  * Optionally you can deploy PIARA Lite in Cloud VM, see separate section for "Advanced deploy" in this document
-* Docker already installed, e.g. using this manual: [https://docs.docker.com/engine/install/debian/](https://docs.docker.com/engine/install/debian/)
-  *   Swarm mode initialized, e.g. using this manual: [https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/](https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/)\
-      For simple cases just execute the command:
-
-      ```
-      docker swarm init --advertise-addr 127.0.0.1
-      ```
-* PIARA Lite license key (should be sent to your email during Stripe free subscription registration)
-
-### Assumptions and limitations <a href="#assumptions-and-limitations" id="assumptions-and-limitations"></a>
-
-* Both `front` and `back` stacks should run on the same machine (Docker Swarm node).
-* All commands are executed being in `piara` folder in your VM, unless otherwise stated.
+* Debian 64-bit (amd64) latest (LTS) release.
+  * Hardware Requirements:
+    * CPU: 4 cores
+    * Memory: 8 GB RAM 
+    * Disk Space: 40 GB
+* PIARA Lite License Key: Obtain a free license key from our website: [piarainc.com](https://piarainc.com)
 
 ### Steps <a href="#steps" id="steps"></a>
 
-1. Pull depoly scripts and configs by executing command being in `/root` folder on your VM
+1. Connect to your Debian server via SSH
+   * Open your terminal and replace `<SERVER_IP_ADDRESS>` with the actual IP address of your Debian server.
+   ```shell
+   ssh root@<SERVER_IP_ADDRESS>
    ```
-   git clone https://github.com/piara-lite/piara-lite-deploy.git piara
-   ```
-   1. Alternatively you may upload deploy scripts zip archive and unpack into `/root` folder on your VM and then rename unpacked folder into `piara`
-1.  Being in `piara` folder execute commands:
-
-    1. ```
-       chmod ug+x piara.sh
-       ```
-    1. ```
-       ./piara.sh install
-       ```
-1. Follow the installation wizard by entering:
-   - Your license key
-   - Webapp domain name (press Enter to keep default)
-   - Server domain name (press Enter to keep default)
-   - Identity Name (any suitable text)
-   - Marking Definition Statement (any suitable text)
-1. At the end of deployment you will see the output with generated login and password for default admin account. Also there will be URLs for entering PIARA Webapp and PIARA Admin Panel.
-1.  After deployment finished, run the following command to ensure that all services were started:
-
+   
+1. Set up Docker's `apt` repository
+    ```shell
+    apt-get update
+    apt-get install ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+     tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update
     ```
+1. Install the latest version of Docker
+    ```shell
+    apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    ```
+
+1. Initialize a Docker Swarm
+    ```shell
+    docker swarm init --advertise-addr 127.0.0.1
+    ```
+1. Install `git`
+    ```shell
+    apt install git
+    ```
+1. Download deployment scripts and configs
+    ```shell
+    git clone https://github.com/piara-lite/piara-lite-deploy.git piara
+    ```
+
+1. Run the PIARA installation script
+
+    The `piara.sh` script automates the installation process.
+    ```shell
+    cd piara/
+    chmod ug+x piara.sh
+    ./piara.sh install
+    ```
+
+1. Follow the installation wizard
+    * You will be prompted to enter the following information:
+        - Your license key
+        - Webapp domain name (Press Enter to keep default: piaralite.piaratestsandbox.net)
+        - Identity Name (Enter any suitable text)
+        - Marking Definition Statement (Enter any suitable text)
+
+1. Copy the output information
+   * The installation script will output the following information:
+       - Webapp URL
+       - Admin Username
+       - Admin Password
+     
+     **Important:** Store this information in a secure location
+
+1. After the installation scripts complete, verify the service status by running the following commands 
+    
+    If the "REPLICAS" column shows "1/1" for each service, all services have successfully started.
+    ```shell
     docker stack services piara-back
     ```
     and
-    ```
+    ```shell
     docker stack services piara-front
     ```
 
-    (i.e., the column "REPLICAS" must have all 1/1 values)
-1. Inject generated unique `identity` and `marking-definition` objects for this env into Server, by running command:
+    **Note:** It may take up to 10 minutes for all services to start
 
-    ```
+1. Create `identity` and `marking-definition` objects
+
+    This script configures the identity and marking definitions for your environment
+    ```shell
     back/add-identity.sh
     ```
-1. Navigate in browser to PIARA Admin Panel on route `/admin` in browser and login with default creds for Server.
-    1. [https://piaralite.piaratestsandbox.net/admin](https://piaralite.piaratestsandbox.net/admin)
-1. In PIARA Admin add new admin user (with different credentials)
-    1. Give this user roles: `Admin` and `ROLE_ADMIN`
-    1. Login with this new user credentials and **disable default admin** user
-1. Add more users in PIARA Admin (if needed).
-1. Open domain name root URL in browser and login into Webapp
-    1. [https://piaralite.piaratestsandbox.net](https://piaralite.piaratestsandbox.net)
+    
+
+1. Open your web browser to log in. Log in using the admin username and password displayed during the installation wizard
+   
+   * **Scenario 1: Local Virtual Machine with Default Domain**
+     * If you installed PIARA Lite on a virtual machine on your local computer and used the default Webapp domain name during installation, open [https://piaralite.piaratestsandbox.net](https://piaralite.piaratestsandbox.net) in your web browser
+
+   * **Scenario 2: Local Virtual Machine with Custom Domain**
+     * If you installed PIARA Lite on a virtual machine on your local computer and entered a custom Webapp domain name, you need to add an entry to your local computer's `/etc/hosts` file.
+     * Add the following line to your `/etc/hosts` file, replacing `<SERVER_IP_ADDRESS>` with the IP address of your virtual machine:
+     ```shell
+     <SERVER_IP_ADDRESS> yourcustomdomain.com
+     ```
+     * Then, open your custom domain (e.g., `http://yourcustomdomain.com`) in your web browser.
+
+   * **Scenario 3: Cloud Virtual Machine with Default Domain**
+     * If you installed PIARA Lite on a virtual machine in the cloud and used the default Webapp domain name during installation, you need to add an entry to your local computer's `/etc/hosts` file
+
+     * Add the following line to your `/etc/hosts` file, replacing `<SERVER_IP_ADDRESS>` with the public IP address of your cloud virtual machine:
+     ```shell
+     <SERVER_IP_ADDRESS> piaralite.piaratestsandbox.net
+     ```
+     * Then, open [https://piaralite.piaratestsandbox.net](https://piaralite.piaratestsandbox.net) in your web browser.
+
+     * **Important:** You may need to configure your cloud provider's firewall to allow access to the server
+
+   * **Scenario 4: Cloud Virtual Machine with Custom Domain**
+     * If you installed PIARA Lite on a virtual machine in the cloud and entered a custom Webapp domain name, you need to add an entry to your local computer's `/etc/hosts` file.
+
+     * Add the following line to your `/etc/hosts` file, replacing `<SERVER_IP_ADDRESS>` with the public IP address of your cloud virtual machine:
+     ```shell
+     <SERVER_IP_ADDRESS> yourcustomdomain.com
+     ```
+            
+     * Then, open your custom domain (e.g., `http://yourcustomdomain.com`) in your web browser.
+     * **Important:** You may need to configure your cloud provider's firewall to allow access to the server.
 
 ### Installation in VirtualBox <a href="#installation-in-virtualbox" id="installation-in-virtualbox"></a>
 
@@ -113,7 +174,7 @@
        ```
        systemctl status ssh
        ```
-   1.  Allow root to connect by adjusting sshd config: 1.
+   1.  Allow root to connect by adjusting sshd config:
 
        ```
        nano /etc/ssh/sshd_config

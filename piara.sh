@@ -128,15 +128,22 @@ install_environment() {
         sed -i "s/^main_common_domain_name_server='[^']*'/main_common_domain_name_server='$SERVER_DOMAIN'/" front/deploy-main.config
     fi
 
-    # Prompt for identity and marking definitions
+    # Prompt for identity and marking definitions with defaults
+    DEFAULT_IDENTITY_NAME="PIARA identity name"
+    DEFAULT_MARKING_STATEMENT="PIARA marking definition statement"
+
     read -p "Enter Identity Name (Press Enter to leave intact): " IDENTITY_NAME
     if [[ -n "$IDENTITY_NAME" ]]; then
         sed -i "s/^main_creds_server_identity_name='[^']*'/main_creds_server_identity_name='$IDENTITY_NAME'/" back/deploy-main-creds.config
+    else
+        sed -i "s/^main_creds_server_identity_name='[^']*'/main_creds_server_identity_name='$DEFAULT_IDENTITY_NAME'/" back/deploy-main-creds.config
     fi
 
     read -p "Enter Marking Definition Statement (Press Enter to leave intact): " MARKING_STATEMENT
     if [[ -n "$MARKING_STATEMENT" ]]; then
         sed -i "s/^main_creds_server_marking_definition_statement='[^']*'/main_creds_server_marking_definition_statement='$MARKING_STATEMENT'/" back/deploy-main-creds.config
+    else
+        sed -i "s/^main_creds_server_marking_definition_statement='[^']*'/main_creds_server_marking_definition_statement='$DEFAULT_MARKING_STATEMENT'/" back/deploy-main-creds.config
     fi
 
     # Generate self-signed SSL certificate
