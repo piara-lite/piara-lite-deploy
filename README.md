@@ -1,7 +1,8 @@
 # PIARA Lite Deploy 18.x
 
 ### Prerequisites <a href="#prerequisites" id="prerequisites"></a>
-* Debian 64-bit (amd64) latest (LTS) release.
+* Debian 64-bit (amd64) latest (LTS) release. 
+  * To install Debian on your **personal computer** for local development or testing, a guide using VirtualBox is provided in the [Installation in VirtualBox](#installation-in-virtualbox) section.
   * Hardware Requirements:
     * CPU: 4 cores
     * Memory: 8 GB RAM 
@@ -15,6 +16,11 @@
    ```shell
    ssh root@<SERVER_IP_ADDRESS>
    ```
+   E.g., for a local Debian server installed using  [Installation in VirtualBox](#installation-in-virtualbox) 
+    ```shell
+    ssh root@localhost -p 2224
+    ```
+   * This assumes you have configured port forwarding in VirtualBox, mapping the guest SSH port (22) to host port 2224
    
 1. Set up Docker's `apt` repository
     ```shell
@@ -130,92 +136,71 @@
 ### Installation in VirtualBox <a href="#installation-in-virtualbox" id="installation-in-virtualbox"></a>
 
 1. Your computer must have enough resources to allocate the following to a guest Virtual Machine:
-   1. 4 CPU, 8 RAM, 40GB disk space.
-   1. Note. Keep in mind, you still need resources for the host. Ideally, host should have at least double of that in 1.a.
-1. Download and install latest VirtualBox for Windows:\
-   [https://www.virtualbox.org/wiki/Downloads](https://www.virtualbox.org/wiki/Downloads)
-1. Download latest stable (LTS) Debian image (amd64):\
-   [https://www.debian.org/CD/http-ftp/#stable](https://www.debian.org/CD/http-ftp/#stable)
+   1. 4 CPU, 8 RAM, 40GB disk space. 
+   1. Note. Remember, the host still needs resources. It should have at least double that amount.
+1. Download and install latest VirtualBox for Windows: [https://www.virtualbox.org/wiki/Downloads](https://www.virtualbox.org/wiki/Downloads)
+1. Download latest stable (LTS) Debian image (amd64): [https://www.debian.org/CD/http-ftp/#stable](https://www.debian.org/CD/http-ftp/#stable)
 1. Create new VM in VirtualBox:
    1. Chose a “Name” for the new virtual machine
    1. Keep “Folder” unchanged(unless you want a different location)
    1. Find the Debian ISO image that you just downloaded in step #2.
    1. Do **NOT** “Skip Unattended Install”
    1. Pick “Username” and “Password”. (default username is “vboxuser”, password is “changeme”)
-   1.  Set “Hostname” to:
-
-       ```
-       piaralite
-       ```
+   1. Set “Hostname” to:
+   ```text
+   piaralite
+   ```
    1.  Set “Domain Name” to:
-
-       ```
-       piaratestsandbox.net
-       ```
+   ```text
+    piaratestsandbox.net
+   ```
    1. Minimum system requirements:
       1. Processors: 4 CPU
       1. Base Memory: 8 GB RAM (same as 8192 MB)
       1. Virtual Hard disk: 40 GB
-1. After Debian is installed, login to the guest Debian VM with the credentials from the step 4.e
+1. After Debian is installed, login to the guest Debian VM with the credentials from the step 4
 1. Open command line terminal:
-1.  Switch to `root` . Password for the `root` is the same as in step 4.e.
-
-    ```
+1. Switch to `root` . Password for the `root` is the same as in step 4.
+    ```text
     su -
     ```
 1. Setup SSH server(you must be root after the step 7):
    1.  install openssh-server
+   ```text
+    apt install openssh-server
+   ```
+   1. Check status to make sure that the server is “active”
+   ```text
+    systemctl --no-pager status ssh
+   ```
+   1. Allow root to connect by adjusting sshd config:
+   ```text
+    sed  -i "/PermitRootLogin/c\PermitRootLogin yes" /etc/ssh/sshd_config
+   ```
+   It will replace `#PermitRootLogin prohibit-password` with `PermitRootLogin yes`
 
-       ```
-       apt install openssh-server
-       ```
-   1.  Check status to make sure that the server is “active”
+1. Disable GUI (you must be root):
+   1. Execute to disable GUI:
+   ```text
+    systemctl set-default multi-user.target
+   ```
+    * Optional. If you need to enable GUI later, you can do this with a command
+      ```text
+      systemctl set-default graphical.target
+      ```
+1. Shutdown the guest Debian VM:
+    ```text
+    shutdown now
+   ```
+1. In VirtualBox, enable port forwarding for the Debian VM for SSH access from your host machine, plus PIARA. 
+   1. First, choose the Debian VM, then open _“Settings” >> “Network” >> “Advanced”_ section. This will show additional network adapter options. Then, we click on “_Port Forwarding_” button.
+   1. Click on the plus '+' icon and add the following:
 
-       ```
-       systemctl status ssh
-       ```
-   1.  Allow root to connect by adjusting sshd config:
+       | Name  | Protocol | Host IP | Host Port | Guest IP | Guest Port |
+       | ----- | -------- | ------- | --------- | -------- | ---------- |
+       | PIARA | TCP      |         | 443       |          | 443        |
+       | SSH   | TCP      |         | 2224      |          | 22         |
 
-       ```
-       nano /etc/ssh/sshd_config
-       ```
-
-       1. Find `#PermitRootLogin prohibit-password`
-          1. Uncomment this line(i.e., remove `#` )
-          1.  Change the line to
-
-              ```
-              PermitRootLogin yes
-              ```
-          1. Save the changes:
-             1. In nano editor, press `Ctrl + X`
-             1. Next press “y”
-             1. Next press “Enter”.
-1. Disable GUI (you must be root after the step 7):
-   1.  Execute to disable GUI:
-
-       ```
-       systemctl set-default multi-user.target
-       ```
-
-       Optional. If you will need to enable GUI later, you can do this with a command:
-
-       ```
-       systemctl set-default graphical.target
-       ```
-   1.  Shutdown the guest Debian VM:
-
-       ```
-       shutdown now
-       ```
-1. In VirtualBox, enable port forwarding for the Debian VM so you can access it via SSH from your host machine, plus PIARA.
-    1. First, choose the Debian VM, then open _“Settings” >> “Network” >> “Advanced”_ section. This will show additional network adapter options. Then, we click on “_Port Forwarding_” button.
-    1.  Click on the plus '+' icon and add the following:
-
-        | Name  | Protocol | Host IP | Host Port | Guest IP | Guest Port |
-        | ----- | -------- | ------- | --------- | -------- | ---------- |
-        | PIARA | TCP      |         | 443       |          | 443        |
-        | SSH   | TCP      |         | 2224      |          | 22         |
 1. Start the guest Debian VM.
 1. To connect to the guest Debian via SSH use:
     1. Username: root
@@ -223,9 +208,8 @@
     1. IP: localhost
     1. Port: 2224
     1.  Example command for the terminal on your host machine:
-
-        ```
-        ssh root@localhost -p 2224
-        ```
+   ```text
+    ssh root@localhost -p 2224
+   ```
 1. After that you may follow normal setup steps, and then access PIARA Lite in your host machine browser:
     1. [https://piaralite.piaratestsandbox.net](https://piaralite.piaratestsandbox.net)
